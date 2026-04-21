@@ -16,7 +16,7 @@ data("PimaIndiansDiabetes")
 
 # DATASET
 
-Pima Indians Diabetes dataset — is a widely used medical dataset applied to binary classification problems in diabetes. It contains medical indicators of women from the Pima indian people (USA) and serves as a benchmark for machine learning and biostatistics research.
+Pima Indians Diabetes dataset — is a widely used medical datast applied to binary classification problems in diabetes. It contains medical indicators of women from the Pima indian people (USA) and serves as a benchmark for machine learning and biostatistics research.
 
 
 ```{r}
