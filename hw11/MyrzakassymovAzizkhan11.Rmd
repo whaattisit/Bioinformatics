@@ -1,0 +1,79 @@
+---
+title: "Saedolix Study Analysis"
+author: "Myrzakassymov Azizkhan"
+date: "2026-04-10"
+output: pdf_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(multcomp)
+library(knitr)
+library(tidyverse)
+library(ggplot2)
+library(stats)
+
+set.seed(42)
+```
+
+```{r}
+df <- read.csv2("1_Saedolix data.csv", sep = ";", dec = ",")
+
+str(df)
+
+head(df) %>% kable()
+
+```
+
+```{r}
+df$group <- factor(df$group, levels = c("p", "s_50", "s_100", "s_200"))
+
+colSums(is.na(df))
+```
+
+```{r}
+summary_table <- df %>%
+  group_by(group) %>%
+  summarise(
+    n = n(),
+    mean_DAS28 = mean(DAS28_baseline, na.rm = TRUE),
+    sd_DAS28 = sd(DAS28_baseline, na.rm = TRUE)
+  )
+
+kable(summary_table, caption = "Mean of each column DAS28 before study:")
+
+```
+  
+```{r cleaning_step}
+df_clean <- df %>% 
+  filter(consent == 1) %>% 
+  filter(pregnancy_test == 0)
+
+nrow(df_clean)
+
+
+```
+
+```{r}
+ggplot(df_clean, aes(x = group, y = DAS28_baseline, fill = group)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(title = "Distribution of DAS28 by groups", y = "DAS28 score", x = "Group")
+
+```
+
+```{r}
+model <- lm(DAS28_baseline ~ group, data = df_clean)
+
+anova_res <- anova(model)
+print(anova_res)
+```
+```{r}
+dunnett_comparison <- glht(model, linfct = mcp(group = "Dunnett"))
+
+summary(dunnett_comparison)
+```
+
+
+
