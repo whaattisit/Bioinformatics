@@ -1,0 +1,546 @@
+---
+title: "R Data Visualization"
+author: "Azizkhan Myrzakassymov"
+date: "2026-04-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# This is a chunk (a code execution block). The first chunk contains
+# options for the entire R Markdown document. By setting TRUE/FALSE in
+# opts_chunk$set, you apply these settings to every chunk in the document.
+# These options include:
+# eval    - whether to execute the chunk
+# echo    - whether to display the code
+# warning - whether to show warnings
+# message - whether to show messages
+# results - whether to display or hide the results of chunk execution
+# (options = 'show' | 'hide')
+
+# The settings below apply to all chunks in the document.
+knitr::opts_chunk$set(echo = TRUE)
+
+# If you want apply smth to the exact chunck, write the options in braces at the
+# beginning of this chunck, e.g. {r, warning = FALSE }
+```
+
+# Markdown Basics here
+
+<https://rmarkdown.rstudio.com/authoring_basics.html>
+
+# For your tables
+
+<https://www.tablesgenerator.com/>
+
+```{r}
+library(mlbench)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+```
+
+```{r}
+data(PimaIndiansDiabetes)
+pima <- PimaIndiansDiabetes
+
+head(pima)
+```
+
+```{r}
+# skimr the library for table summary
+library(skimr)
+skim(pima)
+```
+
+```{r}
+# the most popular library in R is called ggplot2
+library(ggplot2)
+```
+
+```{r}
+# Let's make our own graph
+ggplot(data = pima,
+       aes(x = glucose))
+# aes is for "aesthetic" 
+```
+
+Something clearly went wrong.
+
+In Python’s Matplotlib, you build plots on a figure (like a blank canvas) using axes.
+
+In ggplot2, we’ve created the base figure—now let’s add a plot layer to this “blank canvas.”
+
+For any plot you need:
+
+1.  Data
+2.  Aesthetic
+3.  Plot type indicator (geom)
+
+How do you choose the right plot type? Start by taking a closer look at your data.
+
+What is the type of your data?
+
+## One numeric value.
+
+### Histogram
+
+```{r}
+ggplot(data = pima, aes(x = glucose)) + geom_histogram()
+```
+
+### Density plot
+
+```{r}
+ggplot(data = pima,
+       aes(x = glucose)) + geom_density()
+```
+
+### Box plot
+
+```{r}
+ggplot(data = pima,
+       aes(x = glucose)) + geom_boxplot()
+```
+
+## One numerical + one categorical value
+
+### Boxplot
+
+```{r}
+ggplot(data = pima,
+       aes(x = glucose, y = diabetes)) + geom_boxplot()
+```
+
+*Some offtop tips*
+
+```{r}
+# Three ways of building a chart
+# 1
+ggplot(data = pima, aes(x = glucose,
+                        y = diabetes)) +
+  geom_boxplot()
+
+# 2
+pima %>%
+  ggplot() +
+  geom_boxplot(aes(x = glucose, y = diabetes))
+
+# 3
+ggplot() +
+  geom_boxplot(data = pima,
+               aes(x = glucose, y = diabetes))
+```
+
+```{r}
+# adding some themes
+ggplot() +
+  geom_boxplot(data = pima,
+               aes(x = glucose, y = diabetes)) + 
+  theme_minimal()
+```
+
+```{r}
+# add some constant values
+
+glucose_mean <- round(mean(pima$glucose), 1)
+
+ggplot(data = pima,
+       aes(x = glucose)) + 
+  geom_density() +
+  geom_vline(aes(xintercept = glucose_mean)) + # adding vertical line
+  annotate("text",
+           x = glucose_mean+30,
+           y = 0.013,
+           label = paste0("Mean = ", glucose_mean), color = "red")
+```
+
+How to customize the plot:
+
+```{r}
+ggplot() + 
+  geom_boxplot(data = pima,
+               aes(x = glucose, y = diabetes),
+               color = 'blue') + 
+  theme_minimal() +
+  ggtitle('Distribution of a glucose level in diabetes and non-diabetes group') +
+  labs(y = "Diabetes", x = 'Glucose level') +
+  theme(
+    title = element_text(size = 12),
+    axis.title.y = element_text(size = 14)) + 
+  coord_flip()
+                    
+```
+
+About colors: [https://www.cookbook-r.com/Graphs/Colors\_(ggplot2)/](https://www.cookbook-r.com/Graphs/Colors_(ggplot2)/){.uri}
+
+## One numerical and two categorical
+
+```{r}
+
+pima <- pima %>%
+    mutate(
+      diabetes_ch = as.character(diabetes),
+      age_group = case_when(
+        age < 35 ~ "21-34",
+        age >= 35 & age < 50 ~ "35-49",
+        age >= 50 ~ "50+"
+      )
+    )
+
+table(pima$age_group)
+```
+
+```{r}
+ggplot() +
+  geom_boxplot(data = pima,
+               aes(x = glucose, y = diabetes, fill = age_group)) + 
+  theme_minimal() 
+```
+
+## One categorical value
+
+### Barplot
+
+```{r}
+ggplot() +
+  geom_bar(data = pima,
+           aes(x = age_group, fill = diabetes)) +
+  theme_minimal()
+```
+
+### Density plot
+
+```{r}
+ggplot() +
+  geom_density(data = pima,
+               aes(x = glucose, fill = age_group),
+               alpha = 0.5) +
+  theme_minimal()
+```
+
+```{r}
+ggplot() +
+  geom_boxplot(data = pima,
+               aes(x = glucose, fill = age_group)) +
+  theme_minimal()
+```
+
+##Two categorical values
+
+###Barplot
+
+```{r}
+ggplot() +
+  geom_bar(data = pima,
+           aes(x = age_group, fill = diabetes),
+           position = 'dodge') +
+  theme_minimal()
+```
+
+## Two numerical values
+
+###Scatter plot
+
+```{r}
+pima %>%
+  filter(mass != 0, triceps != 0) %>%
+  ggplot(aes(x=mass, y=triceps)) +
+    geom_point(size = 3, shape = 3) +
+  theme_minimal()
+
+```
+
+## Two numerical + one categorical value
+
+```{r}
+pima %>%
+  filter(mass!=0 & triceps != 0 & pressure !=0) %>%
+  ggplot(aes(x = mass, 
+             y = triceps,
+             color = diabetes)) +
+  geom_point(size=2)
+```
+
+```{r}
+pima %>%
+  filter(mass!=0 & triceps != 0) %>%
+  ggplot(aes(x = mass, y = triceps)) +
+  geom_point(size = 0.5) +
+  geom_smooth(method = lm,
+              color = 'pink', 
+              fill = '#69b3a2',
+              se = TRUE) +
+  theme_minimal()
+```
+
+##Three numerical values
+
+###Scatter plot
+
+```{r}
+pima %>%
+  filter(mass!=0 & triceps != 0 & pressure !=0) %>%
+  ggplot(aes(x = mass, 
+             y = triceps,
+             color = pressure)) +
+  geom_point(size=1) +
+  geom_smooth(method = lm,
+              color = 'lightgreen',
+              fill = 'black',
+              se = TRUE,
+              alpha = 0.2) +
+  theme_minimal()
+```
+
+```{r}
+pima %>%
+  filter(mass!=0 & triceps != 0) %>%
+  ggplot(aes(x = mass, 
+             y = triceps,
+             color = diabetes,
+             fill = diabetes,
+             group = diabetes)) +
+  geom_point(size = 1) +
+  geom_smooth(method = lm,
+              alpha = 0.2,
+              se = TRUE) + 
+  theme_minimal()
+```
+
+## 3+ numerical values
+
+```{r}
+pima %>%
+  filter(mass!=0 & triceps != 0 & pressure !=0) %>%
+  ggplot() +
+  geom_point(
+    aes(x = mass,
+        y = triceps,
+        color = pressure,
+        shape = age_group,
+        alpha = insulin,
+        size = diabetes)) +
+  theme_minimal()
+```
+
+#Facet graphs
+
+## Two numerical + one categorical value
+
+```{r}
+pima %>%
+  filter(mass!=0 & triceps != 0) %>%
+  ggplot(aes(x = mass, 
+             y = triceps,
+             color = diabetes,
+             fill = diabetes,
+             group = diabetes)) +
+  geom_point(size=0.5) +
+  facet_grid(.~diabetes) +
+  theme_minimal()
+```
+
+# 2+ graphs on one figure
+
+```{r}
+scatter <- pima %>%
+  filter(mass != 0 &  triceps != 0) %>%
+  ggplot(aes(x=mass, y=triceps)) +
+  geom_point(size = 1) +
+  theme_minimal()
+
+bar <- 
+  ggplot() +
+  geom_bar(data = pima,
+           aes(x = age_group, fill = diabetes),
+           position = 'dodge') +
+  theme_minimal()
+
+combine_plot <- ggarrange(scatter, bar,
+                          ncol=2, nrow = 1)
+
+combine_plot
+```
+
+#Corr analysis
+
+```{r}
+library(corrplot)
+```
+
+```{r}
+pima_clear <- pima %>%
+  filter(glucose !=0 & 
+           pressure !=0 & 
+           triceps !=0 & 
+           insulin !=0 & 
+           mass !=0 & 
+           age !=0) %>%
+  select(is.integer | is.numeric)
+
+head(pima_clear)
+```
+
+```{r}
+pima_cor <- cor(pima_clear)
+pima_cor
+```
+
+```{r}
+corrplot(pima_cor, method = 'number')
+```
+
+```{r}
+library(corrr)
+pima_cor %>%
+  network_plot(min_cor = .0)
+```
+
+#Heat map
+
+```{r}
+pima_aggr <- pima %>%
+  group_by(age_group, diabetes) %>%
+  summarise(N = n())
+```
+
+```{r}
+pima_aggr %>%
+  ggplot(aes(x = age_group, y = diabetes, fill = N)) +
+  geom_tile(color = 'black') +
+  geom_text(aes(label = N), color = 'white', size = 4) +
+  coord_fixed()
+```
+
+
+
+# Plot essentials
+
+-   `title` → clearly describes what the plot shows
+-   `x`, `y` → axis labels (include units where applicable!)
+-   a clean, readable theme (`theme_minimal()` or similar)
+-   proper text sizing and formatting
+
+```{r}
+ggplot(data = pima, aes(x = diabetes, y = glucose)) +
+  geom_boxplot(fill = "lightblue", color = "black") +
+  
+  labs(
+    title = "Distribution of Glucose Levels\nby Diabetes Status",
+    x = "Diabetes Status",
+    y = "Glucose Level (mg/dL)"
+  ) +
+  
+  theme_minimal() +
+  
+  theme(
+    plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
+    axis.title.x = element_text(size = 10),
+    axis.title.y = element_text(size = 10)
+  )
+
+```
+
+#Save graphs
+
+```{r}
+ggsave(
+  plot = combine_plot,
+  'combine_plot.png',
+  width = 8.5,
+  height = 9,
+  dpi = 1000
+)
+```
+
+# Plotly
+
+```{r}
+library(plotly)
+```
+
+## Boxplot
+
+```{r}
+plot_ly(
+  pima[pima$insulin !=0,],
+  x = ~ insulin,
+  color = ~ age_group,
+  type = 'box'
+)
+```
+
+### Scatter plot
+
+```{r}
+plot_ly(
+  data = pima[(pima$insulin != 0) & (pima$glucose !=0),],
+  x = ~insulin,
+  y = ~glucose)
+```
+
+###Scatter plot + essentials
+
+```{r}
+plot_ly(
+  data = pima[(pima$insulin != 0) & (pima$glucose !=0),],
+  x = ~insulin,
+  y = ~glucose,
+  color = ~diabetes_ch) %>%
+  layout(
+    title = 'Glucose level vs insulin level in Pima Dataset',
+    yaxis = list(title = 'Glucose',
+                 zeroline = FALSE),
+    xaxis = list(title = 'Insulin',
+                 zeroline = FALSE))
+```
+
+###Scatter plot + 3D
+
+```{r}
+plot_ly(
+  data = pima[(pima$insulin != 0) & (pima$glucose !=0),],
+  x = ~insulin,
+  y = ~glucose,
+  z = ~mass,
+  size = 0.5,
+  color = ~diabetes_ch) %>%
+  layout(
+    title = 'Glucose level vs insulin level in Pima Dataset')
+```
+
+###Scatter plot + color palettes
+
+R color Cheatsheet: https://www.nceas.ucsb.edu/sites/default/files/2020-04/colorPaletteCheatsheet.pdf 
+
+```{r}
+plot_ly(
+  data = pima[(pima$insulin != 0) & (pima$glucose !=0),],
+  x = ~insulin,
+  y = ~glucose,
+  color = ~age_group)
+
+```
+```{r}
+plot_ly(
+  data = pima[(pima$insulin != 0) & (pima$glucose !=0),],
+  x = ~insulin,
+  y = ~glucose,
+  color = ~age_group,
+  colors = 'Set1')
+```
+
+###Another plot essentials
+
+```{r}
+plot_ly(
+  data = pima[(pima$insulin != 0) & (pima$glucose !=0),],
+  x = ~insulin,
+  y = ~glucose,
+  color = ~diabetes,
+  size = ~mass,
+  text = ~mass,
+  hoverinfo = 'text')
+```
+
+

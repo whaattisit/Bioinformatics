@@ -1,0 +1,310 @@
+------------------------------------------------------------------------
+
+title: "Saedolix Study Analysis" author: "Myrzakassymov Azizkhan" date: "2026-04-25"
+
+------------------------------------------------------------------------
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(multcomp)
+library(knitr)
+library(tidyverse)
+library(ggplot2)
+library(skimr)
+library(stats)
+library(car)
+
+set.seed(42)
+```
+
+```{r}
+df <- read.csv("2_Saedolix data_step_2.csv", sep = ";", dec = ",")
+
+str(df)
+
+```
+
+```{r number of null elements}
+df$group <- factor(df$group, levels = c("p", "s_50", "s_100", "s_200"))
+
+sum(is.na(df))
+```
+
+```{r}
+skim(df)
+```
+
+=====================================================
+
+```{r cleaning_step}
+df_clean <- df %>% 
+  filter(consent == 1) %>% 
+  filter(pregnancy_test == 0) %>%
+  filter(DAS28_baseline > 3.2) %>%
+  filter(RA_active == 1) 
+
+nrow(df_clean)
+
+
+```
+
+=====================================================
+
+Looking for extreme values in boxplots and trying to evaluate normality by Q-Q plots
+
+=====================================================
+
+```{r}
+ggplot(df_clean, aes(x = group, y = DAS28_baseline, fill = group)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(title = "Distribution of baseline DAS28 by groups", y = "DAS28 score", x = "Group")
+  
+x <- df_clean$DAS28_baseline
+qqnorm(x)
+qqline(x, col = 'green')
+
+```
+
+===================================================== 
+
+We can see that there's no extreme values, distribution of DAS28 is stable
+
+===================================================== 
+
+Hypothesis about randomization
+
+
+To consider randomization in this study, we should at least try to test if means are not same, and to see probability of our result to be "coincidence" if groups really are randomized
+
+I will use Kruskal-Wallis test because we have 4 groups, baseline is not distributed normally
+
+List of hypothesss:
+
+H_0: No group has sufficient level of differences between each other 
+H_1: Some groups have more "troubled" patients with larger mean of DAS28_baseline
+
+
+=====================================================
+
+```{r randomization}
+kruskal.test(DAS28_baseline ~ group, data = df_clean)
+
+```
+
+Our p-value is 0.7638, probability of this kind of data if null hypothesis is true is large, thus we do not reject null-hypothesis.
+
+It doesn't proof anything. Though, the fact that any differences is very likely to be just randomness -- is a very good clue that data randomized correctly.
+
+===================================================== 
+
+Safety Hypotheses
+
+These hypotheses are based on numbers of detected AES (Adverse Events) and SAES (Serious Adverse Events)
+
+Two tests for each subgroup of events:
+
+Test 1: AES
+
+H_0: The expected number of adverse events is equal across all treatment groups
+
+H_1: Some groups has statistically significant difference within or between groups
+
+In this test we will use quasipoisson's test, because number of adverse events is a discrete data with mean!=variance.
+
+```{r AES}
+df_clean$group <- as.factor(df_clean$group)
+
+qpoisson_ae <- glm(aes_det_num ~ group, data = df_clean, family = quasipoisson)
+exp(coef(qpoisson_ae))
+summary(qpoisson_ae)
+
+
+mean(df_clean$aes_det_num)
+var(df_clean$aes_det_num)
+```
+
+Pr(\>\|z\|) (P-values) are large for each group we don't have to deny null hypothesis.
+
+Test 2: SAES
+
+H_0: The expected number of Serious adverse events is equal across all treatment groups
+
+H_1: Some of the treatment groups have statistically significant difference between groups
+
+=====================================================
+
+In this test, as well as in AES test, we will use linear regression model, and assume that data is distributed by quasipoisson distribution
+
+```{r}
+poisson_sae <- glm(saes_det_num ~ group, data = df_clean, family = quasipoisson)
+exp(coef(poisson_sae))
+summary(poisson_sae)
+
+mean(df_clean$saes_det_num)
+var(df_clean$saes_det_num)
+```
+
+We see that all P-values except for (intercept) groups are insufficient. For (intercept, placebo) group it is quite naturally to have this kind of p-value for Serious adverse events. Not denying null hypothesis.
+
+=====================================================
+
+Efficacy hypotheses
+
+=====================================================
+
+Test 1: DAS28_baseline, DAS28_week4 DAS28_week12
+
+Test 2: CRP_baseline, CRP_week12
+
+Test 3: pain_level_baseline, pain_level_week12
+
+=====================================================
+
+Test 1: DAS28_baseline, DAS28_week12
+
+H_0: Percentage of patient with remission (DAS28 \< 2.6) is equal in all groups 
+H_1: At least one group is different from others in percentage
+
+```{r }
+
+model <- lm(DAS28_week12 ~ group + DAS28_baseline, data = df_clean)
+qqnorm(residuals(model))
+leveneTest(residuals(model), df_clean$group)
+summary(model)
+coef(model)
+```
+We can not deny null hypothesis, but for DAS28_baseline coefficient of -0.1346 with this small p-value can say that the more severe patient's arthritis was, the more it was cured by taking it, although this may also be true for placebo groups. The effect of this drug requires further study with larger sample.
+Normality of residuals was violated, but CLT is still working.
+
+
+Test 2: CRP_baseline, CRP_week12
+
+H_0: CRP for groups is equal up to week 12
+
+H_1: CRP for at least one group changes to week 12
+
+Let's try Kruskal-Wallis, because dependancy is "consumed" after subtraction. Thus, sample is independent.
+
+```{r}
+delta_CRP <- df_clean$CRP_baseline - df_clean$CRP_week12
+
+qqnorm(delta_CRP, col = 'green')
+qqline(delta_CRP) # Data is not normally distributed even approximately
+res  <- kruskal.test(delta_CRP ~ group, data = df_clean)
+
+print(res)
+```
+
+as we can see, p-value of delta_CRP is 0.6723, we do not reject the null hypothesis. Study tells us that Saedolix probably does not affects CRP level, let's move to pain level.
+
+
+Test 3: pain_level_baseline, pain_level_week12
+
+H_0: Difference between pain_level from baseline and week 12 is same for all the groups
+
+H_1: Difference between pain_level from baseline and week 12 is not same at least for one of group
+
+```{r}
+ancova <- lm(pain_level_week12 ~ group + pain_level_baseline, data = df_clean)
+
+qqnorm(residuals(ancova))
+
+leveneTest(residuals(ancova) ~ group, data = df_clean)
+
+coef(ancova)
+summary(ancova)
+```
+Saedolix's influence on differences between pain levels between 12 weeks is ALMOST sufficient by the ANOVA-test (p-value = 0.096, not rejecting null Hypothesis),
+Very likely that Saedolix DOES affect pain level, even if we do not reject the null hypothesis. 
+Though, there's tendency in increasing of pain levels comparing to placebo. A larger study can provide a more accurate result. 
+
+=====================================================
+
+Tolerability hypotheses
+
+=====================================================
+
+Test 1: ALT_baseline, ALT_week12
+
+Test 2: AST_baseline, AST_week12
+
+Test 3: Creatinine_baseline, Creatinine_week12
+
+=====================================================
+
+Test 1: ALT_baseline, ALT_week12
+
+
+H_0: Mean of distribution of difference between weeks of ALT is the same for each group
+
+H_1: At least one group has different distribution of ALT difference
+
+```{r}
+delta_ALT <- df_clean$ALT_baseline - df_clean$ALT_week12
+
+qqnorm(delta_ALT, col = 'green')
+qqline(delta_ALT) # Data is not normally distributed, then we shouldn't use ANOVA
+res <- kruskal.test(delta_ALT ~ group, data = df_clean)
+model <- glm(ALT_week12 ~ group + ALT_baseline, data = df_clean)
+
+print(res)
+coef(model)
+```
+Not rejecting the null hypothesis, we can assume that each patients from placebo or 200 mg dose group has same ALT level.
+I discovered unexpected tendency for group with 100mg, coefficient is -1.79, Kruskal-Wallis test showed us that any differences in groups is statistically insufficient.
+Tendency in increasing ALT for patients that is more toxicated with it, shoud be more studied. (Probably this can mean that Saedolix is toxic)
+
+=====================================================
+Test 2: AST_baseline, AST_week12
+
+H_0: Mean of distribution of difference between weeks of AST is the same for each group
+
+H_1: At least one group has different distribution of AST difference
+
+```{r}
+delta_AST <- df_clean$AST_baseline - df_clean$AST_week12
+
+shapiro.test(delta_AST) # wow, this data is absolutely not normal
+res <- kruskal.test(delta_AST ~ group, data = df_clean) 
+model <- glm(AST_week12 ~ group + AST_baseline, data = df_clean)
+
+print(res)
+coef(model)
+```
+
+Reject null hypothesis. research says that Saedolix does not affect AST level.
+AST in general tends to increase, even.
+
+=====================================================
+Test 3: Creatinine_baseline, Creatinine_week12
+
+H_0: Mean of distribution of difference between weeks of Creatinine is the same for each group
+H_1: At least one group has different distribution of Creatinine difference
+
+```{r }
+delta_creatinine <- df_clean$creatinine_baseline - df_clean$creatinine_week12
+
+shapiro.test(delta_creatinine) # not normal
+res <- kruskal.test(delta_creatinine ~ group, data = df_clean) 
+model <- glm(delta_creatinine  ~ group, data = df_clean)
+
+print(res)
+coef(model)
+```
+In Kruskal-test we obtained very high p-value, this can mean anything. We do not reject null hypothesis. 
+Coefficients shows us that, we even if results are not statistically significant, most of the groups has 
+negative coefficients, rather being unefficient relative to placebo.
+
+================================================================================
+
+Summary:
+
+In this study, we used results of Hypotheses testing and linear models, ANCOVA, ANOVA, Kruskal-Wallis test, to see how Saedolix affects on various endpoints of study.
+Data tells us that Saedolix indeed not dangerous, at least in these doses. But secondary endpoints - efficacy, and tolerability.
+Saedolix failed to achieve statistically significant results in them. But we did see tendencies in increase of pain and decrease of DAS28 level in week 12.
+We should consider these effects must be studied by more and larger metastudies.
+Tolerability or toxicity, also has tendency to increase (AST level, ALT level), even though each group (including placebo) didn't show any statistically significant result.
+
+In this study Saedolix failed to achieve statistically significant effects on endpoints. It needs more studies. We do not recommend to use it because of AST, ALT, pain increasing tendencies, which can make patient not only uncomfortable, but be actually dangerous. 
+
